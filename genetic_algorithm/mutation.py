@@ -87,7 +87,7 @@ _REQUIRES_NON_ADJACENT = {
 }
 
 
-def mutate(route: List[int], mutation_rate: float, strategy: Optional[MUTATION_SELECTION]):
+def mutate(route: List[int], mutation_rate: float, strategy: Optional[MUTATION_SELECTION], seed: Optional[int]=None) -> List[int]:
     '''
     Mutates the route based on the specified mutation rate and strategy.
 
@@ -112,7 +112,9 @@ def mutate(route: List[int], mutation_rate: float, strategy: Optional[MUTATION_S
         List[int]: 
             The mutated route.
     '''
-
+    if seed is not None:
+        random.seed(seed)
+        
     if random.random() < mutation_rate:
         route = route.copy()
         if strategy is None:

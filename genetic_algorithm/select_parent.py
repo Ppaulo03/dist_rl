@@ -1,5 +1,5 @@
 from haversine import total_distance
-from typing import List, Tuple, Dict, Callable
+from typing import List, Tuple, Dict, Callable, Optional
 import random
 
 import random
@@ -77,7 +77,7 @@ def select_parents( population: List[List[int]],
                     points: List[Tuple[float, float]], 
                     origin: Tuple[float, float], 
                     strategy: PARENT_SELECTION = PARENT_SELECTION.TOP_HALF,
-                    k: int = 8
+                    k: int = 8, seed: Optional[int] = None
                 ) -> List[List[int]]:
     """
     Selects parents from the population based on a given selection strategy.
@@ -107,6 +107,7 @@ def select_parents( population: List[List[int]],
         List[List[int]]: 
             A list of selected parent routes based on the specified strategy.
     """
+    
 
     # Validate inputs
     if not population:
@@ -114,6 +115,8 @@ def select_parents( population: List[List[int]],
     if k <= 0:
         raise ValueError("Parameter 'k' must be greater than 0.")
 
+    if seed is not None:
+        random.seed(seed)
     
     if strategy == PARENT_SELECTION.RANDOM: 
         return _random_selection(population)

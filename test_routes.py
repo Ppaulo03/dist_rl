@@ -1,6 +1,5 @@
-from routes.nearest_neighbor import nearest_neighbor
-from routes.two_opt import two_opt, total_distance
-from routes.genetic_algorithm import genetic_algorithm
+from genetic_algorithm.routing_utils import nearest_neighbor, total_distance, haversine, two_opt
+from genetic_algorithm.genetic_algorithm import genetic_algorithm
 
 import matplotlib.pyplot as plt
 import random
