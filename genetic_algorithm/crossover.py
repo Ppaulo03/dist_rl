@@ -1,48 +1,35 @@
-from typing import List, Dict, Callable, Optional
-import random
+from typing import List, Tuple, Dict, Callable, Optional
+import numpy as np
 import enum
 
 
-def pmx_crossover(parent1: List[int], parent2: List[int]) -> List[int]:
+def pmx_crossover(parent1: np.ndarray, parent2: np.ndarray) -> np.ndarray:
     """
     Partially Mapped Crossover (PMX): Creates offspring by partially mapping genes from both parents.
     """
     size = len(parent1)
-    child = [-1] * size
+    child = np.full(size, -1)
+    start, end = sorted(np.random.choice(size, 2, replace=False))
+    child[start:end] = parent1[start:end]
 
-    # Randomly select two crossover points
-    start, end = sorted(random.sample(range(size), 2))
-
-    # Copy the segment from parent1 to child
-    for i in range(start, end):
-        child[i] = parent1[i]
-
-    # Fill in the remaining genes from parent2
     for i in range(size):
         if child[i] == -1:
             gene = parent2[i]
             while gene in child:
-                gene = parent2[parent1.index(gene)]
+                gene = parent2[np.where(parent1 == gene)[0][0]]
             child[i] = gene
-
     return child
 
 
-def ox_crossover(parent1: List[int], parent2: List[int]) -> List[int]:
+def ox_crossover(parent1: np.ndarray, parent2: np.ndarray) -> np.ndarray:
     """
     Order Crossover (OX): Creates offspring by preserving the order of genes from both parents.
     """
     size = len(parent1)
-    child = [-1] * size
+    child = np.full(size, -1)
+    start, end = sorted(np.random.choice(size, 2, replace=False))
+    child[start:end] = parent1[start:end]
 
-    # Randomly select two crossover points
-    start, end = sorted(random.sample(range(size), 2))
-
-    # Copy the segment from parent1 to child
-    for i in range(start, end):
-        child[i] = parent1[i]
-
-    # Fill in the remaining genes from parent2 while preserving order
     p2_index = end % size
     for i in range(size):
         if child[i] == -1:
@@ -50,20 +37,18 @@ def ox_crossover(parent1: List[int], parent2: List[int]) -> List[int]:
                 p2_index = (p2_index + 1) % size
             child[i] = parent2[p2_index]
             p2_index = (p2_index + 1) % size
-
     return child
 
 
-def cx_crossover(parent1: List[int], parent2: List[int]) -> List[int]:
+def cx_crossover(parent1: np.ndarray, parent2: np.ndarray) -> np.ndarray:
     """
     Cycle Crossover (CX): Creates offspring by forming cycles between the two parents.
     """
     size = len(parent1)
-    child = [-1] * size
-    visited = [False] * size
-
-    # Start with the first gene from parent1
+    child = np.full(size, -1)
+    visited = np.full(size, False)
     start = 0
+
     while -1 in child:
         if visited[start]:
             break
@@ -71,93 +56,71 @@ def cx_crossover(parent1: List[int], parent2: List[int]) -> List[int]:
         while True:
             child[current] = parent1[current]
             visited[current] = True
-            current = parent2.index(parent1[current])
+            current = np.where(parent2 == parent1[current])[0][0]
             if current == start:
                 break
-
-        # Move to the next unvisited gene in parent1
         start += 1
         while start < size and visited[start]:
             start += 1
-
     return child
 
 
-def erx_crossover(parent1: List[int], parent2: List[int]) -> List[int]:
+def erx_crossover(parent1: np.ndarray, parent2: np.ndarray) -> np.ndarray:
     """
     Edge Recombination Crossover (ERX): Creates offspring by preserving edges between genes.
     """
     size = len(parent1)
-    child = [-1] * size
-    edges = {i: set() for i in range(size)}
+    child = np.full(size, -1)
 
-    # Build the edge list
+    # Build the edge table
+    edges = {int(gene): set() for gene in parent1}
     for i in range(size):
-        edges[parent1[i]].add(parent2[i])
-        edges[parent2[i]].add(parent1[i])
+        a, b = int(parent1[i]), int(parent2[i])
+        edges[a].add(b)
+        edges[b].add(a)
 
-    # Start with a random gene from parent1
-    current = random.choice(range(size))
+    # Keep track of used genes
+    used = set()
+
+    # Pick random start gene
+    current = int(np.random.choice(parent1))
     child[0] = current
+    used.add(current)
 
     for i in range(1, size):
-        next_gene = min(edges[current], key=lambda x: len(edges[x]))
+        # Remove already used genes from all neighbor sets
+        for e in edges.values():
+            e.difference_update(used)
+
+        # If current gene has valid neighbors, pick the one with fewest neighbors
+        if edges[current]:
+            next_gene = min(edges[current], key=lambda x: len(edges[x]))
+        else:
+            # If no valid neighbors, pick a random unused gene
+            remaining = [gene for gene in parent1 if gene not in used]
+            next_gene = np.random.choice(remaining)
+
         child[i] = next_gene
-        edges[current].remove(next_gene)
-        edges[next_gene].remove(current)
+        used.add(next_gene)
         current = next_gene
 
     return child
 
 
-def pmxm_crossover(parent1: List[int], parent2: List[int]) -> List[int]:
-    """
-    Modified PMX Crossover (PMXM): A variation of PMX that uses a different mapping strategy.
-    """
-    size = len(parent1)
-    child = [-1] * size
-
-    # Randomly select two crossover points
-    start, end = sorted(random.sample(range(size), 2))
-
-    # Copy the segment from parent1 to child
-    for i in range(start, end):
-        child[i] = parent1[i]
-
-    # Fill in the remaining genes from parent2 using a modified mapping strategy
-    for i in range(size):
-        if child[i] == -1:
-            gene = parent2[i]
-            while gene in child:
-                gene = parent2[parent1.index(gene)]
-            child[i] = gene
-
-    return child
-
-
-def pos_crossover(parent1: List[int], parent2: List[int]) -> List[int]:
+def pos_crossover(parent1: np.ndarray, parent2: np.ndarray) -> np.ndarray:
     """
     Position-Based Crossover (POS): Creates offspring by selecting genes based on their positions in the parents.
     """
     size = len(parent1)
-    child = [-1] * size
+    child = np.full(size, -1)
+    selected = np.random.choice(size, size // 2, replace=False)
 
-    # Randomly select a subset of genes from parent1
-    selected_genes = random.sample(range(size), size // 2)
+    child[selected] = parent1[selected]
 
-    # Copy the selected genes to child
-    for i in selected_genes:
-        child[i] = parent1[i]
-
-    # Fill in the remaining genes from parent2 while preserving order
-    p2_index = 0
+    p2_iter = iter(g for g in parent2 if g not in child)
     for i in range(size):
         if child[i] == -1:
-            while parent2[p2_index] in child:
-                p2_index += 1
-            child[i] = parent2[p2_index]
-            p2_index += 1
-
+            child[i] = next(p2_iter)
     return child
 
 
@@ -166,22 +129,20 @@ class CROSSOVER_STRATEGY(enum.Enum):
     OX = "Order Crossover"
     CX = "Cycle Crossover"
     ERX = "Edge Recombination Crossover"
-    PMXM = "Modified PMX"
     POS = "Position-Based Crossover"
 
 
 
-_crossover_selection: Dict[CROSSOVER_STRATEGY, Callable[[List[int], List[int]], List[int]]] = {
+_crossover_selection: Dict[CROSSOVER_STRATEGY, Callable[[np.ndarray, np.ndarray], np.ndarray]] = {
     CROSSOVER_STRATEGY.PMX: pmx_crossover,
     CROSSOVER_STRATEGY.OX: ox_crossover,
     CROSSOVER_STRATEGY.CX: cx_crossover,
     CROSSOVER_STRATEGY.ERX: erx_crossover,
-    CROSSOVER_STRATEGY.PMXM: pmxm_crossover,
     CROSSOVER_STRATEGY.POS: pos_crossover,
 }
 
 
-def crossover(parent1: List[int], parent2: List[int], strategy: CROSSOVER_STRATEGY, seed:Optional[int]=None) -> List[int]:
+def crossover(parent1: List[int], parent2: List[int], strategy: CROSSOVER_STRATEGY, seed:Optional[int]=None) -> np.ndarray:
     """
     Performs crossover between two parents using the specified crossover strategy.
 
@@ -194,19 +155,18 @@ def crossover(parent1: List[int], parent2: List[int], strategy: CROSSOVER_STRATE
             
         strategy (CROSSOVER_STRATEGY): 
             The crossover strategy to use. Options:
-            - PMX: Partially Mapped Crossover, Creates offspring by partially mapping genes from both parents.
-            - OX: Order Crossover, Creates offspring by preserving the order of genes from both parents.
-            - CX: Cycle Crossover, Creates offspring by forming cycles between the two parents.
-            - ERX: Edge Recombination Crossover, Creates offspring by preserving edges between genes.
-            - PMXM: Modified PMX Crossover, A variation of PMX that uses a different mapping strategy.
-            - POS: Position-Based Crossover, Creates offspring by selecting genes based on their positions in the parents.
+                - PMX: Partially Mapped Crossover, Creates offspring by partially mapping genes from both parents.
+                - OX: Order Crossover, Creates offspring by preserving the order of genes from both parents.
+                - CX: Cycle Crossover, Creates offspring by forming cycles between the two parents.
+                - ERX: Edge Recombination Crossover, Creates offspring by preserving edges between genes.
+                - POS: Position-Based Crossover, Creates offspring by selecting genes based on their positions in the parents.
 
         seed (int, optional): 
             Random seed for reproducibility.
 
     Returns:
-        List[int]: 
-            The offspring generated from the crossover.
+        Tuple[List[int], List[int]]: 
+            Two offspring created from the parents using the specified crossover strategy.
     """
 
     if strategy not in _crossover_selection:
@@ -215,8 +175,12 @@ def crossover(parent1: List[int], parent2: List[int], strategy: CROSSOVER_STRATE
     if len(parent1) != len(parent2):
         raise ValueError("Parents must have the same length")
 
-    if seed is not None:
-        random.seed(seed)
 
-    return _crossover_selection[strategy](parent1, parent2)
+    if seed is not None:
+        np.random.seed(seed)
+
+    p1, p2 = np.array(parent1), np.array(parent2)
+    child1 = _crossover_selection[strategy](p1, p2)
+    child2 = _crossover_selection[strategy](p2, p1)
+    return child1, child2
 

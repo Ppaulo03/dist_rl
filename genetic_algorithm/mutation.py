@@ -1,31 +1,36 @@
-from typing import List, Dict, Callable, Optional
-import random
+from typing import Optional, Dict, Callable, List
+import numpy as np
 import enum
 
 
-def _swap_mutation(route: List[int], i: int, j: int):
+def _swap_mutation(route: np.ndarray, i: int, j: int):
     '''
     Swap mutation: Swaps two genes in the route.
     '''
     route[i], route[j] = route[j], route[i]
 
 
-def _inversion_mutation(route: List[int], i: int, j: int):
+def _inversion_mutation(route: np.ndarray, i: int, j: int):
     '''
     Inversion mutation: Reverses the order of a subsequence in the route.
     '''
-    route[i:j] = reversed(route[i:j])
+    route[i:j] = route[i:j][::-1]
 
 
-def _insertion_mutation(route: List[int], i: int, j: int):
+def _insertion_mutation(route: np.ndarray, i: int, j: int):
     '''
     Insertion mutation: Moves a gene from one position to another in the route.
     '''
-    item = route.pop(i)
-    route.insert(j, item)
+    if i != j:
+        item = route[i]
+        if i < j:
+            route[i:j] = np.roll(route[i+1:j+1], -1)
+        else:
+            route[j+1:i+1] = np.roll(route[j:i], 1)
+        route[j] = item
 
 
-def _rotation_mutation(route: List[int], i: int, j: int):
+def _rotation_mutation(route: np.ndarray, i: int, j: int):
     '''
     Rotation mutation: Rotates a subsequence in the route.
     '''
@@ -33,7 +38,7 @@ def _rotation_mutation(route: List[int], i: int, j: int):
         route[i:j] = route[i:j][::-1]
 
 
-def _non_adjacent_swap_mutation(route: List[int], i: int, j: int):
+def _non_adjacent_swap_mutation(route: np.ndarray, i: int, j: int):
     '''
     Non-adjacent swap mutation: Swaps two non-adjacent genes in the route.
     '''
@@ -41,23 +46,22 @@ def _non_adjacent_swap_mutation(route: List[int], i: int, j: int):
         route[i], route[j] = route[j], route[i]
 
 
-def _scramble_mutation(route: List[int], i: int, j: int):
+def _scramble_mutation(route: np.ndarray, i: int, j: int):
     '''
     Scramble mutation: Randomly shuffles a subsequence in the route.
     '''
     if abs(i - j) > 1:
-        sub_route = route[i:j]
-        random.shuffle(sub_route)
+        sub_route = np.copy(route[i:j])
+        np.random.shuffle(sub_route)
         route[i:j] = sub_route
 
 
-def _circular_shift_mutation(route: List[int], i: int, j: int):
+def _circular_shift_mutation(route: np.ndarray, i: int, j: int):
     '''
     Circular shift mutation: Shifts a subsequence in the route circularly.
     '''
     if abs(i - j) > 1:
-        sub_route = route[i:j]
-        route[i:j] = sub_route[-1:] + sub_route[:-1]
+        route[i:j] = np.roll(route[i:j], 1)
             
 
 class MUTATION_SELECTION(enum.Enum):
@@ -70,7 +74,7 @@ class MUTATION_SELECTION(enum.Enum):
     CIRCULAR_SHIFT = "circular_shift"
 
 
-_mutation_selection: Dict[MUTATION_SELECTION, Callable[[List[int], int, int], None]] = {
+_mutation_selection: Dict[MUTATION_SELECTION, Callable[[np.ndarray, int, int], None]] = {
     MUTATION_SELECTION.SWAP: _swap_mutation,
     MUTATION_SELECTION.INVERSION: _inversion_mutation,
     MUTATION_SELECTION.INSERTION: _insertion_mutation,
@@ -88,12 +92,12 @@ _REQUIRES_NON_ADJACENT = {
 }
 
 
-def mutate(route: List[int], mutation_rate: float, strategy: Optional[MUTATION_SELECTION], seed: Optional[int]=None) -> List[int]:
+def mutate(route: np.ndarray, mutation_rate: float, strategy: Optional[MUTATION_SELECTION], seed: Optional[int]=None) ->  List[int]:
     '''
     Mutates the route based on the specified mutation rate and strategy.
 
     Args:
-        route (List[int]): 
+        route (np.ndarray): 
             The route to mutate, represented as a list of point indices.
 
         mutation_rate (float): 
@@ -101,36 +105,36 @@ def mutate(route: List[int], mutation_rate: float, strategy: Optional[MUTATION_S
 
         strategy (MUTATION_SELECTION, optional):
             The mutation strategy to use. If None, a random strategy will be selected. Options:
-            - SWAP: Swaps the position of two cities in the route.
-            - INVERSION: Reverses the order of a subsequence within the route.
-            - INSERTION: Removes one city from the route and reinserts it at another position.
-            - ROTATION: Rotates a subsequence of the route (similar to inversion but always applied).
-            - NON_ADJACENT_SWAP: Swaps two cities only if they are not adjacent.
-            - SCRAMBLE: Randomly shuffles the order of cities in a subsequence.
-            - CIRCULAR_SHIFT: Performs a circular shift on a subsequence, moving elements by one position.
+                - SWAP: Swaps the position of two cities in the route.
+                - INVERSION: Reverses the order of a subsequence within the route.
+                - INSERTION: Removes one city from the route and reinserts it at another position.
+                - ROTATION: Rotates a subsequence of the route (similar to inversion but always applied).
+                - NON_ADJACENT_SWAP: Swaps two cities only if they are not adjacent.
+                - SCRAMBLE: Randomly shuffles the order of cities in a subsequence.
+                - CIRCULAR_SHIFT: Performs a circular shift on a subsequence, moving elements by one position.
 
     Returns:
         List[int]: 
             The mutated route.
     '''
     if seed is not None:
-        random.seed(seed)
+        np.random.seed(seed)
         
-    if random.random() < mutation_rate:
+    if np.random.random() < mutation_rate:
         route = route.copy()
         if strategy is None:
-            strategy = random.choice(list(MUTATION_SELECTION))
+            strategy = np.random.choice(list(MUTATION_SELECTION))
 
         if len(route) < 2:
             return route
         
-        i, j = sorted(random.sample(range(len(route)), 2))
+        i, j = np.sort(np.random.choice(len(route), 2, replace=False))
         if strategy in _REQUIRES_NON_ADJACENT:
             _timeout = 0
             while abs(i - j) <= 1:
-                i, j = sorted(random.sample(range(len(route)), 2))
+                i, j = np.sort(np.random.choice(len(route), 2, replace=False))
                 _timeout += 1
                 if _timeout > 10: break
 
         _mutation_selection[strategy](route, i, j)
-    return route
+    return route.tolist()

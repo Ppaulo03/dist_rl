@@ -1,5 +1,7 @@
 from typing import List, Tuple, Sequence, Callable
 from dataclasses import dataclass
+from loguru import logger
+import numpy as np
 import math
 
 EARTH_RADIUS_KM = 6371
@@ -73,10 +75,65 @@ def route_distance(route: Sequence[int], points: Sequence[Tuple[float, float]], 
         float: 
             Total distance of the route in kilometers.
     '''
-    if not route: return 0.0
-    
+    route = np.array(route, dtype=int)
+    if route.size == 0: 
+        return 0.0
+   
     path = [origin] + [points[i] for i in route] + [origin]
     return sum(distance_func(path[i], path[i+1]) for i in range(len(path)-1))
+
+
+
+# ----- Optimazed haversine to routes -----
+def precompute_distance_matrix(points: Sequence[Tuple[float, float]], origin: Tuple[float, float]) -> np.ndarray:
+    '''
+    Precompute the distance matrix for a set of points and an origin using the Haversine formula.
+    
+    Args:
+        points (Sequence[Tuple[float, float]]): 
+            List of coordinates for all points.
+
+        origin (Tuple[float, float]): 
+            Coordinates of the starting point.
+    
+    Returns:
+        np.ndarray:
+            A 2D numpy array representing the distance matrix.
+    '''
+    all_points = [origin] + list(points)
+    lat_lons = np.radians(np.array(all_points))
+
+    lat = lat_lons[:, 0][:, np.newaxis]
+    lon = lat_lons[:, 1][:, np.newaxis]
+
+    delta_lat = lat - lat.T
+    delta_lon = lon - lon.T
+
+    a = np.sin(delta_lat / 2) ** 2 + np.cos(lat) * np.cos(lat.T) * np.sin(delta_lon / 2) ** 2
+    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+    return EARTH_RADIUS_KM * c
+
+
+def route_distance_matrix(route: Sequence[int], dist_matrix: np.ndarray) -> float:
+    '''
+    Calculate the total distance of a route using a precomputed distance matrix.
+
+    Args:
+        route (Sequence[int]): 
+            List of indices representing the order of points in the route.
+
+        dist_matrix (np.ndarray): 
+            Precomputed distance matrix.
+
+    Returns:
+        float:
+            Total distance of the route in kilometers.
+    '''
+    if not route:
+        return 0.0
+    path = np.array([0] + [r + 1 for r in route] + [0])
+    return dist_matrix[path[:-1], path[1:]].sum()
+
 
 
 # ----- Nearest Neighbor Algorithm -----
@@ -158,7 +215,7 @@ def two_opt(route: Sequence[int], points: Sequence[Tuple[float, float]], origin:
     
     validate_coords(origin[0], origin[1])
 
-    best = list(route).copy()
+    best = np.array(route)
     best_distance = route_distance(best, points, origin)
     iteration = 0
     improved = True
@@ -169,7 +226,8 @@ def two_opt(route: Sequence[int], points: Sequence[Tuple[float, float]], origin:
             for j in range(i + 1, len(best)):
                 if j - i == 1:
                     continue  # vizinhos, pular
-                new_route = best[:i] + best[i:j][::-1] + best[j:]
+
+                new_route = np.concatenate([best[:i], best[i:j+1][::-1], best[j+1:]])
                 new_distance = route_distance(new_route, points, origin)
 
                 if new_distance < best_distance:
@@ -182,7 +240,7 @@ def two_opt(route: Sequence[int], points: Sequence[Tuple[float, float]], origin:
                 break
 
         if verbose:
-            print(f"Iter {iteration}: Distance = {best_distance:.2f}")
+            logger.info(f"Iter {iteration}: Distance = {best_distance:.2f}")
 
         iteration += 1
 

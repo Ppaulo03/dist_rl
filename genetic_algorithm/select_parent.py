@@ -1,58 +1,66 @@
-from typing import List, Tuple, Dict, Callable, Optional
-import random
+from typing import List, Tuple, Dict, Callable, Optional, Sequence
+from numpy import ndarray
+import numpy as np
 
 import random
 import enum
 
 
-def _tournament_selection(population: List[List[int]], scored: List[Tuple[List[int], float]], k: int) -> List[List[int]]:
+def _tournament_selection(scored: np.ndarray, k: int) -> np.ndarray:
     '''
     Tournament selection: Selects the best individual from a random subset of the population.
     '''
-    selected = []
-    for _ in range(len(population) // 2):
-        tournament = random.sample(scored, min(k, len(scored)))
-        winner = min(tournament, key=lambda x: x[1])[0]
-        selected.append(winner)
-    return selected
+    population_size = len(scored)
+    winners = []
+
+    for _ in range(population_size // 2):
+        indices = np.random.choice(population_size, min(k, population_size), replace=False)
+        selected = scored[indices]
+        winner_idx = np.argmin(selected[:, 1])  # index of the lowest fitness
+        winners.append(selected[winner_idx, 0])
+
+    return np.array(winners, dtype=int)
 
 
-def _rank_selection(population: List[List[int]], scored: List[Tuple[List[int], float]], k: int) -> List[List[int]]:
+def _rank_selection(scored: np.ndarray, k: int) -> np.ndarray:
     '''
     Rank selection: Assigns a rank to each individual based on their fitness and selects individuals based on their rank.
     '''
-    sorted_scored = sorted(scored, key=lambda x: x[1])
-    ranks = [len(sorted_scored) - i for i in range(len(sorted_scored))]
-    selected = random.choices(sorted_scored, weights=ranks, k=len(population) // 2)
-    return [route for route, _ in selected]
+    population_size = len(scored)
+    sorted_indices = np.argsort(scored[:, 1])
+    ranks = np.arange(population_size, 0, -1)  # Higher rank = better
+
+    probabilities = ranks / ranks.sum()
+    selected_indices = np.random.choice(sorted_indices, size=population_size // 2, p=probabilities)
+    return scored[selected_indices, 0].astype(int)
 
 
-def _roulette_selection(population: List[List[int]], scored: List[Tuple[List[int], float]], k: int) -> List[List[int]]:
+def _roulette_selection(scored: np.ndarray, k: int) -> np.ndarray:
     '''
     Roulette wheel selection: Selects individuals based on their fitness proportionate to the total fitness of the population.
     '''
-    safe_scores = [max(score, 1e-6) for _, score in scored]
-    total_score = sum(1 / s for s in safe_scores)
-    probabilities = [(1 / s) / total_score for s in safe_scores]
-    selected = random.choices(scored, weights=probabilities, k=len(population) // 2)
-    return [route for route, _ in selected]
+    
+    fitness = np.clip(scored[:, 1], 1e-6, None)  # avoid division by zero
+    probabilities = (1 / fitness) / np.sum(1 / fitness)
+    selected_indices = np.random.choice(len(scored), size=len(scored) // 2, p=probabilities)
+    return scored[selected_indices, 0].astype(int)
 
 
-def _top_half_selection(population: List[List[int]], scored: List[Tuple[List[int], float]], k: int) -> List[List[int]]:
+def _top_half_selection(scored: np.ndarray, k: int) -> np.ndarray:
     '''
     Top half selection: Selects the top half of the population based on fitness.
     '''
-    sorted_scored = sorted(scored, key=lambda x: x[1])
-    half_size = len(sorted_scored) // 2
-    selected = [route for route, _ in sorted_scored[:half_size]]
-    return selected
+    sorted_indices = np.argsort(scored[:, 1])
+    top_half = sorted_indices[:len(scored)//2]
+    return scored[top_half, 0].astype(int)
 
 
-def _random_selection(population: List[List[int]], scored: List[Tuple[List[int], float]]=None, k: int=None) -> List[List[int]]:
+def _random_selection(scored: np.ndarray, k: int=None) -> np.ndarray:
     '''
     Random selection: Selects individuals randomly from the population.
     '''
-    return random.sample(population, len(population) // 2)
+    selected_indices = np.random.choice(len(scored), size=len(scored) // 2, replace=False)
+    return scored[selected_indices, 0].astype(int)
 
 
 class PARENT_SELECTION(enum.Enum):
@@ -73,9 +81,8 @@ _parent_selection: Dict[PARENT_SELECTION, Callable[[List[List[int]], List[Tuple[
 
 
 def select_parents( population: List[List[int]],
-                    points: List[Tuple[float, float]], 
-                    origin: Tuple[float, float], 
-                    distance_func: Callable[[Tuple[float, float], Tuple[float, float]], float],
+                    dist_matrix: ndarray,
+                    route_distance_matrix:Callable[[Sequence[int], ndarray], float],
                     strategy: PARENT_SELECTION = PARENT_SELECTION.TOP_HALF,
                     k: int = 8, seed: Optional[int] = None
                 ) -> List[List[int]]:
@@ -86,19 +93,19 @@ def select_parents( population: List[List[int]],
         population (List[List[int]]): 
             A list of candidate solutions (routes), where each route is a sequence of point indices.
 
-        points (List[Tuple[float, float]]): 
-            Coordinates of all possible points in the problem space.
-
-        origin (Tuple[float, float]): 
-            Coordinates of the starting point.
+        dist_matrix (ndarray):
+            A precomputed distance matrix for the points.
+        
+        route_distance_matrix (Callable[[Sequence[int], ndarray], float]): 
+            Function that computes the distance of a route using the distance matrix.
 
         strategy (PARENT_SELECTION): 
             The selection strategy to apply. Options are:
-            - TOURNAMENT: Selects the best individual from a random subset of the population.
-            - RANK: Selects individuals based on their fitness ranking.
-            - ROULETTE: Selects individuals proportionally to their fitness.
-            - TOP_HALF: Selects individuals from the top half of the population.
-            - RANDOM: Selects individuals randomly.
+                - TOURNAMENT: Selects the best individual from a random subset of the population.
+                - RANK: Selects individuals based on their fitness ranking.
+                - ROULETTE: Selects individuals proportionally to their fitness.
+                - TOP_HALF: Selects individuals from the top half of the population.
+                - RANDOM: Selects individuals randomly.
 
         k (int): 
             Parameter used by some strategies (e.g., tournament size for TOURNAMENT).
@@ -116,10 +123,14 @@ def select_parents( population: List[List[int]],
         raise ValueError("Parameter 'k' must be greater than 0.")
 
     if seed is not None:
-        random.seed(seed)
+        np.random.seed(seed)
+
+    population_array = np.array(population, dtype=int)
+
+    # Avalia as rotas
+    scores = np.array([
+        (i, route_distance_matrix(route.tolist(), dist_matrix)) for i, route in enumerate(population_array)
+    ])
     
-    if strategy == PARENT_SELECTION.RANDOM: 
-        return _random_selection(population)
-    
-    scored = [(route, distance_func(route, points, origin)) for route in population]
-    return _parent_selection[strategy](population, scored, k)
+    selected_indices  = _parent_selection[strategy](scores, k)
+    return [population_array[idx].tolist() for idx in selected_indices]
