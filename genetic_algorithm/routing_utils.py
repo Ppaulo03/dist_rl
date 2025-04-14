@@ -1,6 +1,6 @@
-import math
 from typing import List, Tuple, Sequence, Callable
 from dataclasses import dataclass
+import math
 
 EARTH_RADIUS_KM = 6371
 # ----- Coordenate Validation -----
@@ -54,7 +54,7 @@ def haversine(coords1:Tuple[float, float], coords2:Tuple[float, float]) -> float
 
 
 # ----- Distance Calculation -----
-def route_distance(route:Sequence[int], points:Sequence[Tuple[float, float]], origin: Tuple[float, float],
+def route_distance(route: Sequence[int], points: Sequence[Tuple[float, float]], origin: Tuple[float, float],
                    distance_func: Callable[[Tuple[float, float], Tuple[float, float]], float] = haversine) -> float:
     '''
     Calculate the total distance of a route.
@@ -80,7 +80,7 @@ def route_distance(route:Sequence[int], points:Sequence[Tuple[float, float]], or
 
 
 # ----- Nearest Neighbor Algorithm -----
-def nearest_neighbor(origin:Tuple[float, float], points:List[Tuple[float, float]], 
+def nearest_neighbor(origin: Tuple[float, float], points: List[Tuple[float, float]], 
                      distance_func: Callable[[Tuple[float, float], Tuple[float, float]], float] = haversine) -> List[int]:
     '''
     Nearest Neighbor Algorithm: A simple heuristic for the Traveling Salesman Problem.
@@ -121,7 +121,7 @@ def nearest_neighbor(origin:Tuple[float, float], points:List[Tuple[float, float]
 
 
 # ----- Two-Opt Algorithm -----
-def two_opt(route:Sequence[int], points:Sequence[Tuple[float, float]], origin:Tuple[float, float],
+def two_opt(route: Sequence[int], points: Sequence[Tuple[float, float]], origin: Tuple[float, float],
             route_distance: Callable[[Sequence[int], Sequence[Tuple[float, float]], Tuple[float, float]], float]=route_distance, 
             max_iterations=-1, verbose:bool=False) -> List[int]:
     '''

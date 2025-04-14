@@ -2,6 +2,7 @@ from typing import List, Dict, Callable, Optional
 import random
 import enum
 
+
 def _swap_mutation(route: List[int], i: int, j: int):
     '''
     Swap mutation: Swaps two genes in the route.

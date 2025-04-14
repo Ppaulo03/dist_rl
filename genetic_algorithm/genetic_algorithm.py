@@ -3,30 +3,17 @@ try:
     from genetic_algorithm.select_parent import PARENT_SELECTION, select_parents
     from genetic_algorithm.mutation import MUTATION_SELECTION, mutate
     from genetic_algorithm.crossover import CROSSOVER_STRATEGY, crossover
+    from genetic_algorithm.create_population import create_population
 except:
     from routing_utils import total_distance
     from select_parent import PARENT_SELECTION, select_parents
     from mutation import MUTATION_SELECTION, mutate
     from crossover import CROSSOVER_STRATEGY, crossover 
+    from create_population import create_population
 
 import random
 import time
 from typing import Optional
-
-
-def create_population(pop_size, num_points, seeding, seeding_size):
-    population = []
-    if seeding:
-        population.append(seeding[:])
-        for _ in range(seeding_size-1):
-            individual = seeding[:]
-            random.shuffle(individual)
-            population.append(individual)
-
-    while len(population) < pop_size:
-        population.append(random.sample(range(num_points), num_points))
-    return population
-
 
 
 
@@ -35,15 +22,14 @@ def genetic_algorithm(points:list[tuple[float, float]], origin:tuple[float, floa
                       selection_method:PARENT_SELECTION=PARENT_SELECTION.RANK, k:int=5,
                       mutation_strategy:MUTATION_SELECTION=MUTATION_SELECTION.SWAP,
                       crossover_strategy:CROSSOVER_STRATEGY=CROSSOVER_STRATEGY.PMX,
-                      seeding:list[tuple[float, float]]=None, seeding_size:int=3, 
-                      early_stop:int = 50, elitism:bool=True, verbose=False, 
+                      seeding:list[tuple[float, float]]=None, early_stop:int = 50, elitism:bool=True, verbose=False, 
                       use_threads:bool=False, seed:Optional[bool]=None) -> list[tuple[float, float]]:
     
     if seed is not None: 
         random.seed(seed)
 
     num_points = len(points)
-    population = create_population(pop_size, num_points, seeding, seeding_size)
+    population = create_population(pop_size, num_points, seeding)
     best_route = None
     best_distance = float('inf')
 
@@ -51,7 +37,7 @@ def genetic_algorithm(points:list[tuple[float, float]], origin:tuple[float, floa
     for generation in range(generations):   
 
         # Seleciona os melhores (fitness)
-        parents = select_parents(population, points, origin, selection_method, k=k)
+        parents = select_parents(population, points, origin, total_distance, selection_method, k=k)
 
         # Elitismo: guardar o melhor
         elite = min(parents, key=lambda r: total_distance(r, points, origin))

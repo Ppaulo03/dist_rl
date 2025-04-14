@@ -1,4 +1,3 @@
-from haversine import total_distance
 from typing import List, Tuple, Dict, Callable, Optional
 import random
 
@@ -76,6 +75,7 @@ _parent_selection: Dict[PARENT_SELECTION, Callable[[List[List[int]], List[Tuple[
 def select_parents( population: List[List[int]],
                     points: List[Tuple[float, float]], 
                     origin: Tuple[float, float], 
+                    distance_func: Callable[[Tuple[float, float], Tuple[float, float]], float],
                     strategy: PARENT_SELECTION = PARENT_SELECTION.TOP_HALF,
                     k: int = 8, seed: Optional[int] = None
                 ) -> List[List[int]]:
@@ -121,5 +121,5 @@ def select_parents( population: List[List[int]],
     if strategy == PARENT_SELECTION.RANDOM: 
         return _random_selection(population)
     
-    scored = [(route, total_distance(route, points, origin)) for route in population]
+    scored = [(route, distance_func(route, points, origin)) for route in population]
     return _parent_selection[strategy](population, scored, k)
