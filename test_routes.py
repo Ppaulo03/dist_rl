@@ -182,7 +182,7 @@ def time_complexity(min_points=10, max_points=200, step=10, pos_range_x=(-50, 50
         "NN_Time", "2Opt_Time", "GA_Time", "NN_GA_Time", "GA_2Opt_Time", "NN_GA_2Opt_Time"
     ]
 
-    with open("resultados_tsp.csv", "w", newline="") as csvfile:
+    with open("data/resultados_tsp.csv", "w", newline="") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(results)
@@ -222,8 +222,8 @@ def time_complexity(min_points=10, max_points=200, step=10, pos_range_x=(-50, 50
 
 
 def log(n, results, strats):
-    log_output_dist = f"[{n} pontos]" + " | ".join([f"{strat}: {results[strat][-1][1]:.1f}km" for strat in strats])
-    log_output_time = f"[{n} pontos]" + " | ".join([f"{strat}: {results[strat][-1][2]:.4f}s" for strat in strats])
+    log_output_dist = f"[{n} pontos]" + " | ".join([f"{strat.value}: {results[strat][-1][1]:.1f}km" for strat in strats])
+    log_output_time = f"[{n} pontos]" + " | ".join([f"{strat.value}: {results[strat][-1][2]:.4f}s" for strat in strats])
     print(log_output_dist)
     print(log_output_time)
     print("-" * 120)
@@ -236,7 +236,7 @@ def save_csv(results, strats, filename):
         writer.writeheader()
         for strat in strats:
             for n, dist, comp_time in results[strat]:
-                writer.writerow({"Pontos": n, "Estrategia": strat, "Distância": dist, "Tempo": comp_time})
+                writer.writerow({"Pontos": n, "Estrategia": strat.value, "Distância": dist, "Tempo": comp_time})
 
 
 def plot_results(results, strats):
@@ -291,7 +291,7 @@ def compare_mutations_strategy(min_points=10, max_points=200, step=10, pos_range
         
     
     # ----- Salvar em CSV -----
-    save_csv(results, strats, "resultados_crossover.csv")
+    save_csv(results, strats, "data/resultados_mutation.csv")
         
     # ----- Plot -----
     if plot:
@@ -325,7 +325,7 @@ def compare_select_parent_strategy(min_points=10, max_points=200, step=10, pos_r
         
     
     # ----- Salvar em CSV -----
-    save_csv(results, strats, "resultados_select_parents.csv")
+    save_csv(results, strats, "data/resultados_select_parents.csv")
         
     # ----- Plot -----
     if plot:
@@ -359,7 +359,7 @@ def compare_crossover_strategy(min_points=10, max_points=200, step=10, pos_range
         
     
     # ----- Salvar em CSV -----
-    save_csv(results, strats, "resultados_mutacoes.csv")
+    save_csv(results, strats, "data/resultados_crossover.csv")
         
     # ----- Plot -----
     if plot:
