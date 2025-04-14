@@ -1,15 +1,8 @@
-try:
-    from genetic_algorithm.routing_utils import total_distance
-    from genetic_algorithm.select_parent import PARENT_SELECTION, select_parents
-    from genetic_algorithm.mutation import MUTATION_SELECTION, mutate
-    from genetic_algorithm.crossover import CROSSOVER_STRATEGY, crossover
-    from genetic_algorithm.create_population import create_population
-except:
-    from routing_utils import total_distance
-    from select_parent import PARENT_SELECTION, select_parents
-    from mutation import MUTATION_SELECTION, mutate
-    from crossover import CROSSOVER_STRATEGY, crossover 
-    from create_population import create_population
+from .routing_utils import route_distance
+from .select_parent import PARENT_SELECTION, select_parents
+from .mutation import MUTATION_SELECTION, mutate
+from .crossover import CROSSOVER_STRATEGY, crossover
+from .create_population import create_population
 
 import random
 import time
@@ -37,11 +30,11 @@ def genetic_algorithm(points:list[tuple[float, float]], origin:tuple[float, floa
     for generation in range(generations):   
 
         # Seleciona os melhores (fitness)
-        parents = select_parents(population, points, origin, total_distance, selection_method, k=k)
+        parents = select_parents(population, points, origin, route_distance, selection_method, k=k)
 
         # Elitismo: guardar o melhor
-        elite = min(parents, key=lambda r: total_distance(r, points, origin))
-        elite_distance = total_distance(elite, points, origin)
+        elite = min(parents, key=lambda r: route_distance(r, points, origin))
+        elite_distance = route_distance(elite, points, origin)
 
         if elite_distance < best_distance:
             best_distance = elite_distance
@@ -82,7 +75,7 @@ if __name__ == "__main__":
     
     # Gerar pontos aleatórios para teste
     random.seed(42)  # Para reprodutibilidade
-    points = [(random.uniform(-100, 100), random.uniform(-100, 100)) for _ in range(40)]
+    points = [(random.uniform(-90, 90), random.uniform(-90, 90)) for _ in range(40)]
     origin = (0.0, 0.0)
 
     # for key in parent_selection.keys():
@@ -100,7 +93,7 @@ if __name__ == "__main__":
     start = time.time()
     best_route = genetic_algorithm(points, origin, selection_method=PARENT_SELECTION.TOURNAMENT, k=8)
     elapsed_time = time.time() - start
-    dist = total_distance(best_route, points, origin)
+    dist = route_distance(best_route, points, origin)
 
     print(f"Distância total: {dist:.2f} km")
     print(f"Tempo decorrido: {elapsed_time:.2f} segundos\n")
@@ -110,7 +103,7 @@ if __name__ == "__main__":
     start = time.time()
     best_route = genetic_algorithm(points, origin, selection_method=PARENT_SELECTION.TOURNAMENT, k=8, use_threads=True)
     elapsed_time = time.time() - start
-    dist = total_distance(best_route, points, origin)
+    dist = route_distance(best_route, points, origin)
 
     print(f"Distância total com Threads: {dist:.2f} km")
     print(f"Tempo decorrido com Threads: {elapsed_time:.2f} segundos\n")
