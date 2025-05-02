@@ -12,12 +12,16 @@ def pmx_crossover(parent1: np.ndarray, parent2: np.ndarray) -> np.ndarray:
     start, end = sorted(np.random.choice(size, 2, replace=False))
     child[start:end] = parent1[start:end]
 
+    p1_pos = {val: idx for idx, val in enumerate(parent1)}
+    used = set(child[start:end])
+    
     for i in range(size):
         if child[i] == -1:
             gene = parent2[i]
-            while gene in child:
-                gene = parent2[np.where(parent1 == gene)[0][0]]
+            while gene in used:
+                gene = parent2[p1_pos[gene]]
             child[i] = gene
+            used.add(gene)
     return child
 
 
@@ -30,13 +34,14 @@ def ox_crossover(parent1: np.ndarray, parent2: np.ndarray) -> np.ndarray:
     start, end = sorted(np.random.choice(size, 2, replace=False))
     child[start:end] = parent1[start:end]
 
-    p2_index = end % size
+    used = set(child[start:end])
+    p2_filtered = [gene for gene in parent2 if gene not in used]
+
+    idx = 0
     for i in range(size):
         if child[i] == -1:
-            while parent2[p2_index] in child:
-                p2_index = (p2_index + 1) % size
-            child[i] = parent2[p2_index]
-            p2_index = (p2_index + 1) % size
+            child[i] = p2_filtered[idx]
+            idx += 1
     return child
 
 
@@ -46,22 +51,21 @@ def cx_crossover(parent1: np.ndarray, parent2: np.ndarray) -> np.ndarray:
     """
     size = len(parent1)
     child = np.full(size, -1)
-    visited = np.full(size, False)
+    p2_pos = {val: idx for idx, val in enumerate(parent2)}
+    visited = set()
     start = 0
 
-    while -1 in child:
-        if visited[start]:
-            break
-        current = start
-        while True:
-            child[current] = parent1[current]
-            visited[current] = True
-            current = np.where(parent2 == parent1[current])[0][0]
-            if current == start:
-                break
-        start += 1
-        while start < size and visited[start]:
+    while len(visited) < size:
+        if parent1[start] in visited:
             start += 1
+            continue
+        idx = start
+        while True:
+            child[idx] = parent1[idx]
+            visited.add(parent1[idx])
+            idx = p2_pos[parent1[idx]]
+            if idx == start:
+                break
     return child
 
 
@@ -71,35 +75,25 @@ def erx_crossover(parent1: np.ndarray, parent2: np.ndarray) -> np.ndarray:
     """
     size = len(parent1)
     child = np.full(size, -1)
-
-    # Build the edge table
     edges = {int(gene): set() for gene in parent1}
+
     for i in range(size):
-        a, b = int(parent1[i]), int(parent2[i])
-        edges[a].add(b)
-        edges[b].add(a)
+        edges[int(parent1[i])].add(int(parent2[i]))
+        edges[int(parent2[i])].add(int(parent1[i]))
 
-    # Keep track of used genes
     used = set()
-
-    # Pick random start gene
     current = int(np.random.choice(parent1))
     child[0] = current
     used.add(current)
 
     for i in range(1, size):
-        # Remove already used genes from all neighbor sets
         for e in edges.values():
             e.difference_update(used)
-
-        # If current gene has valid neighbors, pick the one with fewest neighbors
-        if edges[current]:
-            next_gene = min(edges[current], key=lambda x: len(edges[x]))
+        neighbors = edges[current]
+        if neighbors:
+            next_gene = min(neighbors, key=lambda x: len(edges[x]))
         else:
-            # If no valid neighbors, pick a random unused gene
-            remaining = [gene for gene in parent1 if gene not in used]
-            next_gene = np.random.choice(remaining)
-
+            next_gene = next(g for g in parent1 if g not in used)
         child[i] = next_gene
         used.add(next_gene)
         current = next_gene

@@ -121,20 +121,27 @@ def mutate(route: np.ndarray, mutation_rate: float, strategy: Optional[MUTATION_
         np.random.seed(seed)
         
     if np.random.random() < mutation_rate:
-        route = route.copy()
         if strategy is None:
             strategy = np.random.choice(list(MUTATION_SELECTION))
 
-        if len(route) < 2:
-            return route
+        if len(route) < 2: return route
         
-        i, j = np.sort(np.random.choice(len(route), 2, replace=False))
-        if strategy in _REQUIRES_NON_ADJACENT:
-            _timeout = 0
-            while abs(i - j) <= 1:
-                i, j = np.sort(np.random.choice(len(route), 2, replace=False))
-                _timeout += 1
-                if _timeout > 10: break
+        length = len(route)
+        def get_random_indices(length: int) -> tuple:
+            i, j = np.random.randint(0, length, 2)
+            while i == j:
+                j = np.random.randint(0, length)
+            if i > j:
+                i, j = j, i
+            return i, j
 
+        i, j = get_random_indices(length)
+        
+        if strategy in _REQUIRES_NON_ADJACENT:
+            attempts = 0
+            while abs(i - j) <= 1 and attempts < 10:
+                i, j = get_random_indices(length)
+                attempts += 1
+        route = route.copy()
         _mutation_selection[strategy](route, i, j)
     return route.tolist()

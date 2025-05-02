@@ -9,7 +9,10 @@ from typing import Optional, List, Callable, Tuple, Sequence
 from loguru import logger
 import numpy as np
 import random
+from time import time
 
+def is_valid_route(route, num_points):
+    return sorted(route) == list(range(num_points))
 
 def genetic_algorithm(  points:List[Tuple[float, float]], origin:Tuple[float, float], 
                         generations:int=300, pop_size:int=150, mutation_rate:float=0.02,
@@ -20,7 +23,7 @@ def genetic_algorithm(  points:List[Tuple[float, float]], origin:Tuple[float, fl
                         crossover_strategy:CROSSOVER_STRATEGY=CROSSOVER_STRATEGY.PMX,
                         mutation_strategy:MUTATION_SELECTION=MUTATION_SELECTION.SWAP,
                         use_threads:bool=False, max_threads:int=4,
-                        seed:Optional[int]=None, verbose=False
+                        seed:Optional[int]=None, verbose=False, use_nn_start:bool=False,
                         ) -> List[tuple[float, float]]:
     
     '''
@@ -93,30 +96,59 @@ def genetic_algorithm(  points:List[Tuple[float, float]], origin:Tuple[float, fl
         seed (Optional[int]): 
             Random seed for reproducibility. Default is None.
 
+        use_nn_start (bool):
+            If True, use the nearest neighbor algorithm to generate the initial route. Default is False.
+
     Returns:
         List[Tuple[float, float]]: 
             The best route found by the algorithm.
     '''
-    
+
+    timers= {
+        'total': time(),
+        'init_population': 0,
+        'selection': 0,
+        'crossover': 0,
+        'mutation': 0,
+        'validation': 0,
+        'elitism': 0,
+    }
+    start = time()
+    init_population_start = time()
     rng = random.Random(seed) if seed is not None else random
     num_points = len(points)
-    population = create_population(pop_size, num_points, seeding)
+    population = create_population(pop_size, num_points, seeding_route=seeding, use_nn=use_nn_start, start_node=origin, points=points)
     best_route = None
     best_distance = float('inf')
     dist_matrix = precompute_distance_matrix(points, origin)
-
     no_improve_counter = 0
-    
+    elapsed_time = time() - init_population_start
+    timers['init_population'] = elapsed_time
+    mutation_rate_adjustable_min = mutation_rate
+
     for generation in range(generations):   
 
+        validation_start = time()
+        for route in population:
+            if not is_valid_route(route, num_points):
+                print("Rota inválida detectada! generation: ", generation, " | route: ", route)
+                raise Exception("Rota inválida!")
+        elapsed_time = time() - validation_start
+        timers['validation'] += elapsed_time
+
+        selection_start = time()
         if use_threads:
             with ThreadPoolExecutor(max_workers=max_threads) as executor:
                 futures = [executor.submit(select_parents, population, dist_matrix, route_distance_matrix, strategy=selection_method, k=k)]
                 parents = futures[0].result()
         else:
             parents = select_parents(population, dist_matrix, route_distance_matrix, strategy=selection_method, k=k)
+        elapsed_time = time() - selection_start
+        timers['selection'] += elapsed_time
+
 
         # Elitismo: guardar o melhor
+        elitism_start = time()
         elite = min(parents, key=lambda r: route_distance_matrix(r, dist_matrix))
         elite_distance = route_distance_matrix(elite, dist_matrix)
 
@@ -126,19 +158,60 @@ def genetic_algorithm(  points:List[Tuple[float, float]], origin:Tuple[float, fl
             no_improve_counter = 0
         else:
             no_improve_counter += 1
+        elapsed_time = time() - elitism_start
+        timers['elitism'] += elapsed_time
+
+
+        
 
         if early_stop > 0 and no_improve_counter >= early_stop:
+            elapsed_time = time() - start
+            timers['total'] = elapsed_time
             if verbose:
+                logger.info("---------------------------------------------------------------------------------------------")
                 logger.info(f"Parou na geração {generation} por early stopping. Melhor distância: {best_distance:.2f} km")
+                logger.info(f"Tempo total: {timers['total']:.2f} segundos")
+                logger.info(f"Tempo de inicialização da população: {timers['init_population']:.2f} segundos")
+                logger.info(f"Tempo de seleção: {timers['selection']:.2f} segundos")
+                logger.info(f"Tempo de crossover: {timers['crossover']:.2f} segundos")
+                logger.info(f"Tempo de mutação: {timers['mutation']:.2f} segundos")
+                logger.info(f"Tempo de validação: {timers['validation']:.2f} segundos")
+                logger.info(f"Tempo de elitismo: {timers['elitism']:.2f} segundos")
             return best_route
     
         # Preenche população com filhos
         next_population = []
 
         def cross_and_mutate(p1, p2):
+            # select_parents_start = time()
+            # parents = select_parents(population, dist_matrix, route_distance_matrix, strategy=selection_method, k=k)
+            # elapsed_time = time() - select_parents_start
+            # p1, p2 = rng.sample(parents, 2)
+            # timers['selection'] += elapsed_time
+
+            crossover_start = time()
             child1, child2 = crossover(p1, p2, crossover_strategy)
+            elapsed_time = time() - crossover_start
+            timers['crossover'] += elapsed_time
+
+            validation_start = time()
+            assert is_valid_route(child1, num_points), f"Filho 1 inválido: {child1}"
+            assert is_valid_route(child2, num_points), f"Filho 2 inválido: {child2}"
+            elapsed_time = time() - validation_start
+            timers['validation'] += elapsed_time
+
+            mutate_start = time()
             child1 = mutate(child1, mutation_rate, mutation_strategy)
             child2 = mutate(child2, mutation_rate, mutation_strategy)
+            elapsed_time = time() - mutate_start
+            timers['mutation'] += elapsed_time
+
+            validation_start = time()
+            assert is_valid_route(child1, num_points), f"Filho 1 inválido após mutação: {child1}"
+            assert is_valid_route(child2, num_points), f"Filho 2 inválido após mutação: {child2}"
+            elapsed_time = time() - validation_start
+            timers['validation'] += elapsed_time
+
             return child1, child2
         
         if use_threads:
@@ -158,22 +231,37 @@ def genetic_algorithm(  points:List[Tuple[float, float]], origin:Tuple[float, fl
             while len(next_population) < pop_size:
                 p1, p2 = rng.sample(parents, 2)
                 child1, child2 = cross_and_mutate(p1, p2)
-                next_population.append(child1)
-                next_population.append(child2)
+                next_population.append(list(child1))
+                next_population.append(list(child2))
         
         # Se elitismo estiver ativado, passa o elite pra próxima geração
+        elitism_start = time()
         if elitism and elite not in next_population:
             if len(next_population) >= pop_size:
-                next_population[rng.randint(0, pop_size-1)] = elite  # substitui aleatoriamente
+                worst_index = max(range(len(next_population)), key=lambda i: route_distance_matrix(next_population[i], dist_matrix))
+                next_population[worst_index] = elite
             else:
                 next_population.append(elite)
+        elapsed_time = time() - elitism_start
+        timers['elitism'] += elapsed_time
+
 
         population = next_population
 
         # Print a cada 50 gerações
-        if verbose and generation % 50 == 0:
+        if verbose and generation % 50 == 0: 
             logger.info(f"Geração {generation}: Melhor até agora = {best_distance:.2f} km")
-        
+    
+    elapsed_time = time() - start
+    timers['total'] = elapsed_time
     if verbose:
         logger.info(f"Algoritmo finalizou todas as gerações. Melhor distância encontrada: {best_distance:.2f} km")
+        logger.info(f"Tempo total: {timers['total']:.2f} segundos")
+        logger.info(f"Tempo de inicialização da população: {timers['init_population']:.2f} segundos")
+        logger.info(f"Tempo de seleção: {timers['selection']:.2f} segundos")
+        logger.info(f"Tempo de crossover: {timers['crossover']:.2f} segundos")
+        logger.info(f"Tempo de mutação: {timers['mutation']:.2f} segundos")
+        logger.info(f"Tempo de validação: {timers['validation']:.2f} segundos")
+        logger.info(f"Tempo de elitismo: {timers['elitism']:.2f} segundos")
+        
     return best_route

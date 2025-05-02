@@ -15,9 +15,8 @@ def _tournament_selection(scored: np.ndarray, k: int) -> np.ndarray:
 
     for _ in range(population_size // 2):
         indices = np.random.choice(population_size, min(k, population_size), replace=False)
-        selected = scored[indices]
-        winner_idx = np.argmin(selected[:, 1])  # index of the lowest fitness
-        winners.append(selected[winner_idx, 0])
+        winner = scored[indices][np.argmin(scored[indices, 1]), 0]
+        winners.append(int(winner))
 
     return np.array(winners, dtype=int)
 
@@ -28,30 +27,31 @@ def _rank_selection(scored: np.ndarray, k: int) -> np.ndarray:
     '''
     population_size = len(scored)
     sorted_indices = np.argsort(scored[:, 1])
-    ranks = np.arange(population_size, 0, -1)  # Higher rank = better
-
+    ranks = np.arange(population_size, 0, -1)
     probabilities = ranks / ranks.sum()
-    selected_indices = np.random.choice(sorted_indices, size=population_size // 2, p=probabilities)
-    return scored[selected_indices, 0].astype(int)
+
+    selected = np.random.choice(sorted_indices, size=population_size // 2, p=probabilities)
+    return scored[selected, 0].astype(int)
 
 
 def _roulette_selection(scored: np.ndarray, k: int) -> np.ndarray:
     '''
     Roulette wheel selection: Selects individuals based on their fitness proportionate to the total fitness of the population.
     '''
-    
-    fitness = np.clip(scored[:, 1], 1e-6, None)  # avoid division by zero
-    probabilities = (1 / fitness) / np.sum(1 / fitness)
-    selected_indices = np.random.choice(len(scored), size=len(scored) // 2, p=probabilities)
-    return scored[selected_indices, 0].astype(int)
+    fitness = np.clip(scored[:, 1], 1e-6, None)
+    inv_fitness = 1.0 / fitness
+    probabilities = inv_fitness / inv_fitness.sum()
+
+    selected = np.random.choice(len(scored), size=len(scored) // 2, p=probabilities)
+    return scored[selected, 0].astype(int)
+
 
 
 def _top_half_selection(scored: np.ndarray, k: int) -> np.ndarray:
     '''
     Top half selection: Selects the top half of the population based on fitness.
     '''
-    sorted_indices = np.argsort(scored[:, 1])
-    top_half = sorted_indices[:len(scored)//2]
+    top_half = np.argsort(scored[:, 1])[:len(scored) // 2]
     return scored[top_half, 0].astype(int)
 
 
@@ -59,8 +59,8 @@ def _random_selection(scored: np.ndarray, k: int=None) -> np.ndarray:
     '''
     Random selection: Selects individuals randomly from the population.
     '''
-    selected_indices = np.random.choice(len(scored), size=len(scored) // 2, replace=False)
-    return scored[selected_indices, 0].astype(int)
+    selected = np.random.choice(len(scored), size=len(scored) // 2, replace=False)
+    return scored[selected, 0].astype(int)
 
 
 class PARENT_SELECTION(enum.Enum):
@@ -125,12 +125,13 @@ def select_parents( population: List[List[int]],
     if seed is not None:
         np.random.seed(seed)
 
-    population_array = np.array(population, dtype=int)
+    population_array = np.array(population, dtype=np.int32)
 
     # Avalia as rotas
-    scores = np.array([
-        (i, route_distance_matrix(route.tolist(), dist_matrix)) for i, route in enumerate(population_array)
-    ])
+    scores = np.empty((len(population), 2), dtype=np.float64)
+    for i, route in enumerate(population_array):
+        scores[i, 0] = i
+        scores[i, 1] = route_distance_matrix(route.tolist(), dist_matrix)
     
     selected_indices  = _parent_selection[strategy](scores, k)
-    return [population_array[idx].tolist() for idx in selected_indices]
+    return [population_array[i].tolist() for i in selected_indices]
