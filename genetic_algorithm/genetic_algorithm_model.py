@@ -183,11 +183,6 @@ def genetic_algorithm(  points:List[Tuple[float, float]], origin:Tuple[float, fl
         next_population = []
 
         def cross_and_mutate(p1, p2):
-            # select_parents_start = time()
-            # parents = select_parents(population, dist_matrix, route_distance_matrix, strategy=selection_method, k=k)
-            # elapsed_time = time() - select_parents_start
-            # p1, p2 = rng.sample(parents, 2)
-            # timers['selection'] += elapsed_time
 
             crossover_start = time()
             child1, child2 = crossover(p1, p2, crossover_strategy)

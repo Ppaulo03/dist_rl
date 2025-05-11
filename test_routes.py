@@ -518,7 +518,7 @@ if __name__ == "__main__":
         print("-" * 120)  
 
 
-    #time_complexity(max_points=100)
+    time_complexity(max_points=100)
     #compare_mutations_strategy(min_points=5, max_points=50, step=5)
     #compare_select_parent_strategy(min_points=5, max_points=50, step=5)
     #compare_crossover_strategy(min_points=5, max_points=50, step=5)
