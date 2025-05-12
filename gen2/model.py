@@ -84,17 +84,19 @@ def mutate(route:np.ndarray) -> np.ndarray:
 
 
 def genetic_algorithm(points: np.ndarray, origin: tuple, population_size: int = 100, generations: int = 1000, mutation_rate: float = 0.2, 
-                      early_stop = True, seeding=True, post_process=False) -> tuple[list[int], np.ndarray]:
+                      early_stop = True, seeding=True, post_process=False) -> tuple[list[int], float]:
     
     nn_route, dist_matrix = nearest_neighbor(origin, points)
     population = init_population(population_size, nn_route, use_seed=seeding)
-    improvement_threshold = 0.001 if early_stop else -1
-    best_route = _ga_core(population, dist_matrix, generations, mutation_rate, 250, improvement_threshold)
-    if post_process: best_route = two_opt(best_route, dist_matrix, max_iterations=1000)
-    return best_route, dist_matrix
+    improvement_threshold = 0.0001 if early_stop else -1
+    best_route, best_distance = _ga_core(population, dist_matrix, generations, mutation_rate, 500, improvement_threshold)
+    if post_process: 
+        best_route = two_opt(best_route, dist_matrix, max_iterations=1000)
+        best_distance = route_distance(best_route, dist_matrix)
+    return best_route, best_distance
 
 @njit
-def _ga_core(population: np.ndarray, dist_matrix: np.ndarray, generations: int, mutation_rate: float, window_size: int, improvement_thresh: float) -> np.ndarray:
+def _ga_core(population: np.ndarray, dist_matrix: np.ndarray, generations: int, mutation_rate: float, window_size: int, improvement_thresh: float) -> tuple[list[int], float]:
 
     n_pop, n_genes = population.shape
     best_route = np.empty(n_genes, dtype=np.int32)
@@ -150,4 +152,4 @@ def _ga_core(population: np.ndarray, dist_matrix: np.ndarray, generations: int, 
         pop = new_population
 
 
-    return best_route        
+    return best_route, best_distance      

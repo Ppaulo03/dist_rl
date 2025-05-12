@@ -1,22 +1,20 @@
 from gen2.model import genetic_algorithm
 from gen2.utils import nearest_neighbor, route_distance, two_opt
 import numpy as np
+import osmnx as ox
 
 import matplotlib.pyplot as plt
 import time
 
 GA_POPSIZE = 1000
 GA_GENERATIONS = 30000
-GA_MUTATE_RATE = 0.1
+GA_MUTATE_RATE = 0.2
 
-LAT = -16.6869
-LON = -49.2648
-
-# Variação em torno de Goiânia (em graus)
-LAT_RANGE = 0.06
-LON_RANGE = 0.06
-ORIGIN = (-16.6864, -49.4000)
-N_POINTS = 50
+ORIGIN = (-49.238858, -16.671274)
+place = "Goiânia, Goiás, Brasil"
+G = ox.graph_from_place(place, network_type='drive')
+G_proj = ox.project_graph(G)
+G_proj = G_proj.to_undirected()
 
 class Result:
     def __init__(self, name, name_short, route, distance, time):
@@ -50,32 +48,28 @@ def run_all(origin, points, verbose=False):
 
     # Genetic Algorithm
     start = time.time()
-    ga_route, dist_matrix = genetic_algorithm(points, origin, seeding=False, post_process=False, population_size=GA_POPSIZE, generations=GA_GENERATIONS, mutation_rate=GA_MUTATE_RATE)
-    ga_dist = route_distance(ga_route, dist_matrix)
+    ga_route, ga_dist = genetic_algorithm(points, origin, seeding=False, post_process=False, population_size=GA_POPSIZE, generations=GA_GENERATIONS, mutation_rate=GA_MUTATE_RATE)
     ga_time = time.time() - start
     ga_result = Result("Genetic Algorithm", "GA", ga_route, ga_dist, ga_time)
     if verbose: print(ga_result)
 
     # NN + Genetic Algorithm
     start = time.time()
-    nn_ga_route, dist_matrix = genetic_algorithm(points, origin, seeding=True, post_process=False, population_size=GA_POPSIZE, generations=GA_GENERATIONS, mutation_rate=GA_MUTATE_RATE)
-    nn_ga_dist = route_distance(nn_ga_route, dist_matrix)
+    nn_ga_route, nn_ga_dist = genetic_algorithm(points, origin, seeding=True, post_process=False, population_size=GA_POPSIZE, generations=GA_GENERATIONS, mutation_rate=GA_MUTATE_RATE)
     nn_ga_time = time.time() - start
     nn_ga_result = Result("NN + Genetic Algorithm", "NN+GA", nn_ga_route, nn_ga_dist, nn_ga_time)
     if verbose: print(nn_ga_result)
 
     # Genetic Algorithm + 2-Opt
     start = time.time()
-    ga_opt_route, dist_matrix = genetic_algorithm(points, origin, seeding=False, post_process=True, population_size=GA_POPSIZE, generations=GA_GENERATIONS, mutation_rate=GA_MUTATE_RATE)
-    ga_opt_dist = route_distance(ga_opt_route, dist_matrix)
+    ga_opt_route, ga_opt_dist = genetic_algorithm(points, origin, seeding=False, post_process=True, population_size=GA_POPSIZE, generations=GA_GENERATIONS, mutation_rate=GA_MUTATE_RATE)
     ga_opt_time = time.time() - start
     ga_opt_result = Result("GA + 2-Opt", "GA+2-Opt", ga_opt_route, ga_opt_dist, ga_opt_time)
     if verbose: print(ga_opt_result)
 
     # NN + Genetic Algorithm + 2-Opt
     start = time.time()
-    nn_ga_opt_route, dist_matrix = genetic_algorithm(points, origin, seeding=True, post_process=True, population_size=GA_POPSIZE, generations=GA_GENERATIONS, mutation_rate=GA_MUTATE_RATE)
-    nn_ga_opt_dist = route_distance(nn_ga_opt_route, dist_matrix)
+    nn_ga_opt_route, nn_ga_opt_dist = genetic_algorithm(points, origin, seeding=True, post_process=True, population_size=GA_POPSIZE, generations=GA_GENERATIONS, mutation_rate=GA_MUTATE_RATE)
     nn_ga_opt_time = time.time() - start
     nn_ga_opt_result = Result("NN + GA + 2-Opt", "NN+GA+2-Opt", nn_ga_opt_route, nn_ga_opt_dist, nn_ga_opt_time)
     if verbose: print(nn_ga_opt_result)
@@ -90,7 +84,7 @@ def run_all(origin, points, verbose=False):
     }
     
 
-def compare_routes(num_points=20, lat_range=(LAT - LAT_RANGE, LAT + LAT_RANGE), lon_range=(LON - LON_RANGE, LON + LON_RANGE), origin=ORIGIN, plot=True):
+def compare_routes(num_points=20, origin=ORIGIN, plot=True):
     def plot_route(ax, points, origin, route, title):
         path = [origin] + [points[i] for i in route] + [origin]
         xs, ys = zip(*path)
@@ -100,9 +94,10 @@ def compare_routes(num_points=20, lat_range=(LAT - LAT_RANGE, LAT + LAT_RANGE), 
         ax.scatter(origin[0], origin[1], color='green', s=100, label='Origem')
         ax.legend()
 
-    lats = np.random.uniform(lat_range[0], lat_range[1], size=num_points)
-    lons = np.random.uniform(lon_range[0], lon_range[1], size=num_points)
-    points = np.column_stack((lats, lons))
+    points_proj = ox.utils_geo.sample_points(G_proj, num_points)
+    points_geo = points_proj.to_crs(epsg=4326)
+    points = [[point.x, point.y] for point in points_geo.geometry]
+    points = np.array(points)
 
     results = run_all(origin, points, verbose=True)
 
@@ -117,7 +112,7 @@ def compare_routes(num_points=20, lat_range=(LAT - LAT_RANGE, LAT + LAT_RANGE), 
     plt.show()
 
 
-def time_complexity(min_points=10, max_points=200, step=10, lat_range=(LAT - LAT_RANGE, LAT + LAT_RANGE), lon_range=(LON - LON_RANGE, LON + LON_RANGE), origin=ORIGIN):
+def time_complexity(min_points=10, max_points=200, step=10, origin=ORIGIN):
     
     if max_points > 100 and min_points < 100:
         sizes_a = list(range(min_points, 101, step))
@@ -132,9 +127,11 @@ def time_complexity(min_points=10, max_points=200, step=10, lat_range=(LAT - LAT
 
     for n in sizes:
         # ----- Gerar pontos aleatórios
-        lats = np.random.uniform(lat_range[0], lat_range[1], size=n)
-        lons = np.random.uniform(lon_range[0], lon_range[1], size=n)
-        points = np.column_stack((lats, lons))
+        points_proj = ox.utils_geo.sample_points(G_proj, n)
+        points_geo = points_proj.to_crs(epsg=4326)
+        points = [[point.x, point.y] for point in points_geo.geometry]
+        points = np.array(points)
+
    
         results = run_all(origin, points)
 
